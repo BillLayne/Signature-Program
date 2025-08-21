@@ -360,6 +360,62 @@
       content:'📅';
       background:#457b9d;
     }
+    
+    /* Initial box styles */
+    .signature-box[data-box-type="initial"] {
+      border-color:#5a7a8c;
+      background:rgba(90, 122, 140, 0.05);
+    }
+    
+    .signature-box[data-box-type="initial"].signed::after {
+      content:'✏️';
+      background:#5a7a8c;
+    }
+    
+    /* Text box styles */
+    .signature-box[data-box-type="text"] {
+      border-color:#6b46c1;
+      background:rgba(107, 70, 193, 0.05);
+    }
+    
+    .signature-box[data-box-type="text"].signed::after {
+      content:'📝';
+      background:#6b46c1;
+    }
+    
+    /* Checkbox styles */
+    .signature-box[data-box-type="checkbox"] {
+      border-color:#10b981;
+      background:rgba(16, 185, 129, 0.05);
+      border-radius:4px !important;
+      min-width:30px !important;
+      min-height:30px !important;
+    }
+    
+    .signature-box[data-box-type="checkbox"].signed {
+      background:rgba(16, 185, 129, 0.2);
+    }
+    
+    .signature-box[data-box-type="checkbox"].signed::after {
+      display:none;
+    }
+    
+    /* Radio button styles */
+    .signature-box[data-box-type="radio"] {
+      border-color:#f59e0b;
+      background:rgba(245, 158, 11, 0.05);
+      border-radius:50% !important;
+      min-width:30px !important;
+      min-height:30px !important;
+    }
+    
+    .signature-box[data-box-type="radio"].signed {
+      background:rgba(245, 158, 11, 0.2);
+    }
+    
+    .signature-box[data-box-type="radio"].signed::after {
+      display:none;
+    }
 
     .signature-box-label {
       position:absolute;
@@ -820,10 +876,14 @@
       <span style="font-size:12px; font-weight:600;">Size</span>
     </div>
 
-    <div class="box-controls hidden" id="boxControls" style="display:flex; gap:8px; align-items:center;">
-      <button class="btn small secondary" id="addSignatureBox">+ Signature Box</button>
-      <button class="btn small secondary" id="addDateBox">+ Date Box</button>
-      <span style="font-size:11px; color:#666;">Click on page to place</span>
+    <div class="box-controls hidden" id="boxControls" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <button class="btn small secondary" id="addSignatureBox" title="Full Signature">✍️ Signature</button>
+      <button class="btn small secondary" id="addInitialBox" title="Initials">✏️ Initials</button>
+      <button class="btn small secondary" id="addDateBox" title="Date">📅 Date</button>
+      <button class="btn small secondary" id="addTextBox" title="Text Input">📝 Text</button>
+      <button class="btn small secondary" id="addCheckbox" title="Checkbox">☑️ Check</button>
+      <button class="btn small secondary" id="addRadioGroup" title="Radio Button">⭕ Radio</button>
+      <span style="font-size:11px; color:#666; width:100%;">Click on page to place</span>
     </div>
 
     <button id="btnOpenFile" class="btn secondary small">
@@ -933,9 +993,9 @@
         </div>
 
         <div class="option-toggle">
-          <label>Technical Audit Trail (PDF)</label>
+          <label>Include Audit Trail (appended to PDF)</label>
           <div class="toggle-switch">
-            <input type="checkbox" id="downloadAudit" />
+            <input type="checkbox" id="downloadAudit" checked />
             <div class="toggle-bg"></div>
             <div class="toggle-slider"></div>
           </div>
@@ -985,7 +1045,8 @@
     let penSize = 2;
     let undoStack = [];
     let confirmationId = null;
-    let nextBoxType = 'signature'; // 'signature' or 'date'
+    let nextBoxType = 'signature'; // 'signature', 'initial', 'date', 'text', 'checkbox', 'radio'
+    let radioGroups = {}; // Track radio button groups
 
     // UI Elements
     const el = id => document.getElementById(id);
@@ -1008,7 +1069,11 @@
     const penColorInput = el('penColor');
     const penSizeInput = el('penSize');
     const addSignatureBoxBtn = el('addSignatureBox');
+    const addInitialBoxBtn = el('addInitialBox');
     const addDateBoxBtn = el('addDateBox');
+    const addTextBoxBtn = el('addTextBox');
+    const addCheckboxBtn = el('addCheckbox');
+    const addRadioGroupBtn = el('addRadioGroup');
     const btnClear = el('btnClear');
     const btnUndo = el('btnUndo');
     const fabSave = el('fabSave');
@@ -1117,19 +1182,56 @@
       penSize = parseInt(e.target.value);
     });
 
-    // Box type controls
+    // Box type controls - helper function to clear all selections
+    function clearBoxTypeSelection() {
+      [addSignatureBoxBtn, addInitialBoxBtn, addDateBoxBtn, addTextBoxBtn, 
+       addCheckboxBtn, addRadioGroupBtn].forEach(btn => btn.classList.remove('success'));
+    }
+
     addSignatureBoxBtn.addEventListener('click', () => {
       nextBoxType = 'signature';
+      clearBoxTypeSelection();
       addSignatureBoxBtn.classList.add('success');
-      addDateBoxBtn.classList.remove('success');
       showToast('Click on page to place signature box');
+    });
+
+    addInitialBoxBtn.addEventListener('click', () => {
+      nextBoxType = 'initial';
+      clearBoxTypeSelection();
+      addInitialBoxBtn.classList.add('success');
+      showToast('Click on page to place initials box');
     });
 
     addDateBoxBtn.addEventListener('click', () => {
       nextBoxType = 'date';
+      clearBoxTypeSelection();
       addDateBoxBtn.classList.add('success');
-      addSignatureBoxBtn.classList.remove('success');
       showToast('Click on page to place date box');
+    });
+
+    addTextBoxBtn.addEventListener('click', () => {
+      nextBoxType = 'text';
+      clearBoxTypeSelection();
+      addTextBoxBtn.classList.add('success');
+      showToast('Click on page to place text input box');
+    });
+
+    addCheckboxBtn.addEventListener('click', () => {
+      nextBoxType = 'checkbox';
+      clearBoxTypeSelection();
+      addCheckboxBtn.classList.add('success');
+      showToast('Click on page to place checkbox');
+    });
+
+    addRadioGroupBtn.addEventListener('click', () => {
+      nextBoxType = 'radio';
+      clearBoxTypeSelection();
+      addRadioGroupBtn.classList.add('success');
+      const groupName = prompt('Enter radio button group name (e.g., "option1"):');
+      if (groupName) {
+        radioGroups.currentGroup = groupName;
+        showToast(`Click to place radio button for "${groupName}"`);
+      }
     });
 
     // File handling
@@ -1265,10 +1367,25 @@
           const y = ((e.clientY - rect.top) / rect.height) * 100;
           
           // Create appropriate box based on selected type
-          if (nextBoxType === 'date') {
-            addSignatureBox(pageNum - 1, x - 7, y - 3, 20, 8, 'Date', 'date');
-          } else {
-            addSignatureBox(pageNum - 1, x - 10, y - 5, 30, 10, 'Signature', 'signature');
+          switch(nextBoxType) {
+            case 'date':
+              addSignatureBox(pageNum - 1, x - 7, y - 3, 20, 8, 'Date', 'date');
+              break;
+            case 'initial':
+              addSignatureBox(pageNum - 1, x - 5, y - 3, 15, 8, 'Initials', 'initial');
+              break;
+            case 'text':
+              addSignatureBox(pageNum - 1, x - 10, y - 3, 30, 8, 'Text Field', 'text');
+              break;
+            case 'checkbox':
+              addSignatureBox(pageNum - 1, x - 2, y - 2, 5, 5, 'Check', 'checkbox');
+              break;
+            case 'radio':
+              const radioLabel = radioGroups.currentGroup || 'Option';
+              addSignatureBox(pageNum - 1, x - 2, y - 2, 5, 5, radioLabel, 'radio');
+              break;
+            default: // signature
+              addSignatureBox(pageNum - 1, x - 10, y - 5, 30, 10, 'Signature', 'signature');
           }
         }
       });
@@ -1374,10 +1491,30 @@
       box.dataset.boxId = `box_${Date.now()}_${Math.random()}`;
       box.dataset.boxType = boxType;
 
-      // Add visual distinction for date boxes
-      if (boxType === 'date') {
-        box.style.borderColor = '#457b9d';
-        box.style.background = 'rgba(69, 123, 157, 0.05)';
+      // Add visual distinction for different box types
+      switch(boxType) {
+        case 'date':
+          box.style.borderColor = '#457b9d';
+          box.style.background = 'rgba(69, 123, 157, 0.05)';
+          break;
+        case 'initial':
+          box.style.borderColor = '#5a7a8c';
+          box.style.background = 'rgba(90, 122, 140, 0.05)';
+          break;
+        case 'text':
+          box.style.borderColor = '#6b46c1';
+          box.style.background = 'rgba(107, 70, 193, 0.05)';
+          break;
+        case 'checkbox':
+          box.style.borderColor = '#10b981';
+          box.style.background = 'rgba(16, 185, 129, 0.05)';
+          box.style.borderRadius = '4px';
+          break;
+        case 'radio':
+          box.style.borderColor = '#f59e0b';
+          box.style.background = 'rgba(245, 158, 11, 0.05)';
+          box.style.borderRadius = '50%';
+          break;
       }
 
       const boxLabel = document.createElement('div');
@@ -1387,7 +1524,29 @@
 
       const hint = document.createElement('div');
       hint.className = 'signature-box-hint';
-      hint.textContent = boxType === 'date' ? 'Click to add date' : 'Click to sign';
+      
+      // Set appropriate hint text
+      switch(boxType) {
+        case 'date':
+          hint.textContent = 'Click to add date';
+          break;
+        case 'initial':
+          hint.textContent = 'Click to initial';
+          break;
+        case 'text':
+          hint.textContent = 'Click to type';
+          break;
+        case 'checkbox':
+          hint.textContent = '☐';
+          hint.style.fontSize = '20px';
+          break;
+        case 'radio':
+          hint.textContent = '○';
+          hint.style.fontSize = '20px';
+          break;
+        default:
+          hint.textContent = 'Click to sign';
+      }
 
       // Add resize handles
       ['tl', 'tr', 'bl', 'br'].forEach(pos => {
@@ -1588,6 +1747,59 @@
     }
 
     function signBox(box) {
+      const boxType = box.dataset.boxType;
+      
+      // Handle checkbox toggle
+      if (boxType === 'checkbox') {
+        if (box.classList.contains('signed')) {
+          box.classList.remove('signed');
+          const hint = box.querySelector('.signature-box-hint');
+          hint.textContent = '☐';
+          showToast('Checkbox unchecked');
+        } else {
+          box.classList.add('signed');
+          const hint = box.querySelector('.signature-box-hint');
+          hint.textContent = '☑';
+          showToast('Checkbox checked');
+        }
+        return;
+      }
+      
+      // Handle radio button selection
+      if (boxType === 'radio') {
+        const groupName = box.querySelector('.signature-box-label').textContent;
+        // Uncheck other radio buttons in the same group on the same page
+        const pageIndex = parseInt(box.dataset.pageIndex);
+        document.querySelectorAll(`.signature-box[data-box-type="radio"][data-page-index="${pageIndex}"]`).forEach(radio => {
+          const radioLabel = radio.querySelector('.signature-box-label').textContent;
+          if (radioLabel === groupName || radioLabel.startsWith(groupName.split(' ')[0])) {
+            radio.classList.remove('signed');
+            radio.querySelector('.signature-box-hint').textContent = '○';
+          }
+        });
+        box.classList.add('signed');
+        box.querySelector('.signature-box-hint').textContent = '●';
+        showToast(`Selected: ${groupName}`);
+        return;
+      }
+      
+      // Handle text input
+      if (boxType === 'text') {
+        const currentText = box.dataset.textContent || '';
+        const newText = prompt('Enter text:', currentText);
+        if (newText !== null) {
+          box.dataset.textContent = newText;
+          box.classList.add('signed');
+          const hint = box.querySelector('.signature-box-hint');
+          hint.textContent = newText || 'Click to type';
+          hint.style.fontSize = '12px';
+          hint.style.fontWeight = 'normal';
+          showToast('Text added');
+        }
+        return;
+      }
+      
+      // Regular signature/initial/date boxes - draw on canvas
       box.classList.add('signed');
       const pageIndex = parseInt(box.dataset.pageIndex);
       const canvas = pagesState[pageIndex].canvas;
@@ -1615,10 +1827,7 @@
       // Calculate appropriate font size based on box dimensions
       const fontSize = Math.max(Math.min(height * 0.5, width * 0.1, 50), 20);
       
-      // Check if this is a date box based on box type
-      const isDateBox = box.dataset.boxType === 'date';
-      
-      if (isDateBox) {
+      if (boxType === 'date') {
         // Draw date
         const today = new Date();
         const dateStr = `${today.getMonth()+1}/${today.getDate()}/${today.getFullYear()}`;
@@ -1628,8 +1837,26 @@
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(dateStr, x + width/2, y + height/2);
+      } else if (boxType === 'initial') {
+        // Draw initials
+        const names = consent.name.split(' ');
+        const initials = names.map(n => n[0]).join('').toUpperCase();
+        
+        ctx.fillStyle = '#0b1d29';
+        ctx.strokeStyle = '#0b1d29';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Use a simple bold font for initials
+        ctx.font = `bold ${fontSize * 1.2}px Arial, sans-serif`;
+        
+        // Draw the initials
+        ctx.fillText(initials, x + width/2, y + height/2);
+        
+        // No underline for initials
+        showToast('Initials added');
       } else {
-        // Draw signature name
+        // Draw full signature
         // Ensure text is always visible with good contrast
         ctx.fillStyle = '#0b1d29';
         ctx.strokeStyle = '#0b1d29';
@@ -1833,13 +2060,28 @@
         console.log('Signed PDF created, size:', signedPdf?.length);
         console.log('Signed PDF type:', signedPdf?.constructor?.name);
         
-        // Verify the signed PDF is valid
-        if (!signedPdf || signedPdf.length === 0) {
-          throw new Error('Failed to generate signed PDF - empty result');
+        // Generate audit trail PDF
+        console.log('Generating audit trail PDF...');
+        const auditPdf = await generateAuditPdf();
+        
+        // Combine signed PDF with audit trail
+        let finalPdf = signedPdf;
+        if (auditPdf) {
+          console.log('Combining signed PDF with audit trail...');
+          const combinedPdf = await combinePdfs(signedPdf, auditPdf);
+          if (combinedPdf) {
+            finalPdf = combinedPdf;
+            console.log('Combined PDF created, size:', finalPdf.length);
+          }
         }
         
-        // Create blob with proper type
-        const blob = new Blob([signedPdf], { type: 'application/pdf' });
+        // Verify the final PDF is valid
+        if (!finalPdf || finalPdf.length === 0) {
+          throw new Error('Failed to generate PDF - empty result');
+        }
+        
+        // Create blob with proper type (using combined PDF)
+        const blob = new Blob([finalPdf], { type: 'application/pdf' });
         console.log('Blob created, size:', blob.size, 'type:', blob.type);
         
         if (blob.size === 0) {
@@ -1937,13 +2179,23 @@
         console.error('Error stack:', err.stack);
         showToast(`Print failed: ${err.message}`);
         
-        // Emergency fallback - try to download the original PDF with signatures
+        // Emergency fallback - try to download the PDF with signatures and audit
         try {
           console.log('Attempting emergency download...');
           const emergencyPdf = await buildSignedPdf();
-          if (emergencyPdf && emergencyPdf.length > 0) {
-            downloadBlob(generateFileName(), emergencyPdf, 'application/pdf');
-            showToast('Print failed - file downloaded instead');
+          const auditPdf = await generateAuditPdf();
+          
+          let finalEmergencyPdf = emergencyPdf;
+          if (emergencyPdf && auditPdf) {
+            const combined = await combinePdfs(emergencyPdf, auditPdf);
+            if (combined) {
+              finalEmergencyPdf = combined;
+            }
+          }
+          
+          if (finalEmergencyPdf && finalEmergencyPdf.length > 0) {
+            downloadBlob(generateFileName(), finalEmergencyPdf, 'application/pdf');
+            showToast('Print failed - file downloaded instead (with audit trail)');
           }
         } catch (e) {
           console.error('Emergency download also failed:', e);
@@ -1961,10 +2213,23 @@
       try {
         showToast('Preparing download...');
         const signedPdf = await buildSignedPdf();
+        
+        // Generate audit trail PDF
+        const auditPdf = await generateAuditPdf();
+        
+        // Combine signed PDF with audit trail
+        let finalPdf = signedPdf;
+        if (auditPdf) {
+          const combinedPdf = await combinePdfs(signedPdf, auditPdf);
+          if (combinedPdf) {
+            finalPdf = combinedPdf;
+          }
+        }
+        
         const fileName = generateFileName();
         
-        // Download signed PDF immediately
-        downloadBlob(fileName, signedPdf, 'application/pdf');
+        // Download combined PDF (includes audit trail)
+        downloadBlob(fileName, finalPdf, 'application/pdf');
         
         // Also download confirmation page
         const confirmation = generateConfirmationHtml();
@@ -1974,7 +2239,7 @@
           'text/html'
         );
         
-        showToast('Files downloaded!');
+        showToast('Files downloaded with audit trail!');
       } catch (err) {
         showToast('Download failed');
         console.error(err);
@@ -1987,8 +2252,29 @@
         const signedPdf = await buildSignedPdf();
         const fileName = generateFileName();
         
-        // Download signed PDF
-        downloadBlob(fileName, signedPdf, 'application/pdf');
+        // Check if audit should be included with the main PDF
+        let finalPdf = signedPdf;
+        if (el('downloadAudit').checked) {
+          const auditPdf = await generateAuditPdf();
+          if (auditPdf) {
+            // Combine signed PDF with audit trail
+            const combinedPdf = await combinePdfs(signedPdf, auditPdf);
+            if (combinedPdf) {
+              finalPdf = combinedPdf;
+              showToast('Audit trail included in PDF');
+            } else {
+              // If combine fails, download separately
+              downloadBlob(
+                fileName.replace('.pdf', '_audit.pdf'),
+                auditPdf,
+                'application/pdf'
+              );
+            }
+          }
+        }
+        
+        // Download the final PDF (with or without audit)
+        downloadBlob(fileName, finalPdf, 'application/pdf');
 
         // Download confirmation if selected
         if (el('downloadConfirmation').checked) {
@@ -1998,18 +2284,6 @@
             new TextEncoder().encode(confirmation),
             'text/html'
           );
-        }
-
-        // Download audit if selected
-        if (el('downloadAudit').checked) {
-          const auditPdf = await generateAuditPdf();
-          if (auditPdf) {
-            downloadBlob(
-              fileName.replace('.pdf', '_audit.pdf'),
-              auditPdf,
-              'application/pdf'
-            );
-          }
         }
 
         showToast('Files downloaded successfully');
@@ -2318,8 +2592,35 @@
 </html>`;
     }
 
+    async function combinePdfs(pdf1Bytes, pdf2Bytes) {
+      try {
+        const pdf1 = await PDFLib.PDFDocument.load(pdf1Bytes);
+        const pdf2 = await PDFLib.PDFDocument.load(pdf2Bytes);
+        
+        const mergedPdf = await PDFLib.PDFDocument.create();
+        
+        // Copy all pages from first PDF
+        const pages1 = await mergedPdf.copyPages(pdf1, pdf1.getPageIndices());
+        pages1.forEach(page => mergedPdf.addPage(page));
+        
+        // Copy all pages from second PDF
+        const pages2 = await mergedPdf.copyPages(pdf2, pdf2.getPageIndices());
+        pages2.forEach(page => mergedPdf.addPage(page));
+        
+        return await mergedPdf.save();
+      } catch (error) {
+        console.error('Failed to combine PDFs:', error);
+        return null;
+      }
+    }
+
     async function generateAuditPdf() {
       try {
+        // Ensure confirmation ID exists
+        if (!confirmationId) {
+          confirmationId = generateConfirmationId();
+        }
+        
         // Create a new PDF document for the audit trail
         const auditDoc = await PDFLib.PDFDocument.create();
         const page = auditDoc.addPage([612, 792]); // Letter size
