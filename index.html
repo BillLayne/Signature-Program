@@ -5,6 +5,15 @@
   <title>Bill Layne Insurance – Signature Capture</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#1a5f7a" />
+  <meta name="description" content="Professional electronic signature app for Bill Layne Insurance documents">
+  
+  <!-- PWA Support -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="BLI Signature">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- PDF.js -->
@@ -890,6 +899,19 @@
       📁 Open
     </button>
 
+    <select id="templateSelector" class="btn secondary small" style="padding: 8px 12px; border-radius: 12px; border: none; background: #f0f3f7; min-height: 36px;">
+      <option value="">📋 Templates</option>
+      <option value="auto_claim">Auto Claim</option>
+      <option value="home_insurance">Home Insurance</option>
+      <option value="consent_form">Consent Form</option>
+      <option value="__divider__" disabled>──────────</option>
+      <option value="__manage__">⚙️ Manage Templates...</option>
+    </select>
+    
+    <button id="btnSaveTemplate" class="btn success small" style="display:none;">
+      💾 Save as Template
+    </button>
+
     <button id="btnClear" class="btn danger small" disabled>
       Clear
     </button>
@@ -1020,6 +1042,44 @@
     </div>
   </div>
 
+  <!-- Template Management Modal -->
+  <div id="templateModal" class="modal">
+    <div class="modal-card" style="max-width: 600px;">
+      <h2>📋 Template Management</h2>
+      
+      <div class="form-group">
+        <h3>Create New Template</h3>
+        <p style="font-size: 14px; color: #666; margin: 10px 0;">
+          1. Load your PDF document<br>
+          2. Add all signature boxes where needed<br>
+          3. Click "Save Current as Template" below
+        </p>
+        <input type="text" id="newTemplateName" placeholder="Enter template name (e.g., NC Grange App)" style="margin-bottom: 10px;">
+        <button class="btn success" onclick="saveCurrentAsTemplate()">💾 Save Current as Template</button>
+      </div>
+
+      <div class="form-group" style="margin-top: 30px;">
+        <h3>Your Custom Templates</h3>
+        <div id="customTemplatesList" style="max-height: 200px; overflow-y: auto;">
+          <!-- Custom templates will be listed here -->
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top: 30px;">
+        <h3>Import/Export Templates</h3>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn secondary" onclick="exportTemplates()">📤 Export All</button>
+          <button class="btn secondary" onclick="document.getElementById('importTemplateFile').click()">📥 Import</button>
+          <input type="file" id="importTemplateFile" accept=".json" style="display:none;" onchange="importTemplates(event)">
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="hideModal('templateModal')">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast notification -->
   <div id="toast" class="toast"></div>
 
@@ -1080,6 +1140,7 @@
     const fabPrint = el('fabPrint');
     const fabDownload = el('fabDownload');
     const btnOpenFile = el('btnOpenFile');
+    const templateSelector = el('templateSelector');
     const btnDownloadLocal = el('btnDownloadLocal');
     const btnSaveDrive = el('btnSaveDrive');
     const pageNav = el('pageNav');
@@ -1231,6 +1292,28 @@
       if (groupName) {
         radioGroups.currentGroup = groupName;
         showToast(`Click to place radio button for "${groupName}"`);
+      }
+    });
+
+    // Template selector
+    templateSelector.addEventListener('change', (e) => {
+      const value = e.target.value;
+      
+      if (value === '__manage__') {
+        showModal('templateModal');
+        updateTemplatesList();
+        e.target.value = '';
+        return;
+      }
+      
+      if (value && value !== '__divider__' && value !== '__divider2__') {
+        if (pagesState.length > 0) {
+          applyTemplate(value);
+          e.target.value = ''; // Reset selector
+        } else {
+          showToast('Please load a PDF first');
+          e.target.value = '';
+        }
       }
     });
 
@@ -1566,6 +1649,7 @@
         if (confirm('Delete this signature box?')) {
           box.remove();
           signatureBoxes = signatureBoxes.filter(b => b.element !== box);
+          updateSaveTemplateButton();
         }
       };
 
@@ -1639,6 +1723,9 @@
       if (currentMode === 'box') {
         showToast(`Added: ${label}`);
       }
+      
+      // Update save template button visibility
+      updateSaveTemplateButton();
     }
 
     function selectBox(box) {
@@ -3016,12 +3103,347 @@
       }
     }
 
+    // Load custom templates from localStorage
+    function loadCustomTemplates() {
+      const stored = localStorage.getItem('customTemplates');
+      return stored ? JSON.parse(stored) : {};
+    }
+
+    // Save custom templates to localStorage
+    function saveCustomTemplates(templates) {
+      localStorage.setItem('customTemplates', JSON.stringify(templates));
+      updateTemplateSelector();
+    }
+
+    // Combine built-in and custom templates
+    let customTemplates = loadCustomTemplates();
+    
+    // Templates for common insurance forms (built-in)
+    const builtInTemplates = {
+      'auto_claim': {
+        name: 'Auto Insurance Claim',
+        boxes: [
+          { page: 0, x: 10, y: 60, width: 35, height: 10, label: 'Policyholder Signature', type: 'signature' },
+          { page: 0, x: 55, y: 60, width: 20, height: 8, label: 'Date', type: 'date' },
+          { page: 0, x: 10, y: 75, width: 15, height: 8, label: 'Initials', type: 'initial' }
+        ]
+      },
+      'home_insurance': {
+        name: 'Home Insurance Application',
+        boxes: [
+          { page: 0, x: 10, y: 80, width: 35, height: 10, label: 'Applicant Signature', type: 'signature' },
+          { page: 0, x: 55, y: 80, width: 20, height: 8, label: 'Date', type: 'date' },
+          { page: 0, x: 10, y: 50, width: 5, height: 5, label: 'Coverage A', type: 'checkbox' },
+          { page: 0, x: 10, y: 56, width: 5, height: 5, label: 'Coverage B', type: 'checkbox' }
+        ]
+      },
+      'consent_form': {
+        name: 'General Consent Form',
+        boxes: [
+          { page: 0, x: 10, y: 85, width: 35, height: 10, label: 'Signature', type: 'signature' },
+          { page: 0, x: 55, y: 85, width: 20, height: 8, label: 'Date', type: 'date' },
+          { page: 0, x: 10, y: 70, width: 30, height: 8, label: 'Printed Name', type: 'text' }
+        ]
+      }
+    };
+    
+    // Merge all templates
+    const formTemplates = { ...builtInTemplates, ...customTemplates };
+
+    // Apply template
+    function applyTemplate(templateName) {
+      // Check both built-in and custom templates
+      const allTemplates = { ...builtInTemplates, ...customTemplates };
+      const template = allTemplates[templateName];
+      if (!template || !pagesState.length) return;
+      
+      template.boxes.forEach(boxConfig => {
+        if (boxConfig.page < pagesState.length) {
+          addSignatureBox(
+            boxConfig.page,
+            boxConfig.x,
+            boxConfig.y,
+            boxConfig.width,
+            boxConfig.height,
+            boxConfig.label,
+            boxConfig.type
+          );
+        }
+      });
+      
+      showToast(`Template applied: ${template.name}`);
+    }
+
+    // Save current boxes as template
+    function saveCurrentAsTemplate() {
+      const templateName = document.getElementById('newTemplateName').value.trim();
+      if (!templateName) {
+        showToast('Please enter a template name');
+        return;
+      }
+      
+      if (!signatureBoxes.length) {
+        showToast('No signature boxes to save');
+        return;
+      }
+      
+      // Capture current box positions
+      const boxes = [];
+      signatureBoxes.forEach(boxInfo => {
+        const box = boxInfo.element;
+        const pageIndex = parseInt(box.dataset.pageIndex);
+        const label = box.querySelector('.signature-box-label').textContent;
+        const boxType = box.dataset.boxType;
+        
+        // Get position as percentages
+        const x = parseFloat(box.style.left);
+        const y = parseFloat(box.style.top);
+        const width = parseFloat(box.style.width);
+        const height = parseFloat(box.style.height);
+        
+        boxes.push({
+          page: pageIndex,
+          x: x,
+          y: y,
+          width: width,
+          height: height,
+          label: label,
+          type: boxType
+        });
+      });
+      
+      // Create template ID from name
+      const templateId = templateName.toLowerCase().replace(/\s+/g, '_');
+      
+      // Save to custom templates
+      customTemplates[templateId] = {
+        name: templateName,
+        boxes: boxes,
+        createdAt: new Date().toISOString()
+      };
+      
+      saveCustomTemplates(customTemplates);
+      updateTemplatesList();
+      document.getElementById('newTemplateName').value = '';
+      showToast(`Template "${templateName}" saved successfully!`);
+      hideModal('templateModal');
+    }
+
+    // Update template selector dropdown
+    function updateTemplateSelector() {
+      const selector = document.getElementById('templateSelector');
+      
+      // Clear existing options
+      selector.innerHTML = `
+        <option value="">📋 Templates</option>
+        <option value="auto_claim">Auto Claim</option>
+        <option value="home_insurance">Home Insurance</option>
+        <option value="consent_form">Consent Form</option>
+      `;
+      
+      // Add custom templates
+      if (Object.keys(customTemplates).length > 0) {
+        selector.innerHTML += '<option value="__divider__" disabled>──────────</option>';
+        
+        Object.entries(customTemplates).forEach(([id, template]) => {
+          const option = document.createElement('option');
+          option.value = id;
+          option.textContent = `📌 ${template.name}`;
+          selector.appendChild(option);
+        });
+      }
+      
+      selector.innerHTML += `
+        <option value="__divider2__" disabled>──────────</option>
+        <option value="__manage__">⚙️ Manage Templates...</option>
+      `;
+    }
+
+    // Update templates list in modal
+    function updateTemplatesList() {
+      const listContainer = document.getElementById('customTemplatesList');
+      
+      if (Object.keys(customTemplates).length === 0) {
+        listContainer.innerHTML = '<p style="color: #666; font-style: italic;">No custom templates yet</p>';
+        return;
+      }
+      
+      listContainer.innerHTML = '';
+      Object.entries(customTemplates).forEach(([id, template]) => {
+        const item = document.createElement('div');
+        item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8f9fa; margin-bottom: 5px; border-radius: 8px;';
+        item.innerHTML = `
+          <div>
+            <strong>${template.name}</strong>
+            <small style="display: block; color: #666;">${template.boxes.length} boxes</small>
+          </div>
+          <div style="display: flex; gap: 5px;">
+            <button class="btn small secondary" onclick="applyTemplate('${id}')">Apply</button>
+            <button class="btn small danger" onclick="deleteTemplate('${id}')">Delete</button>
+          </div>
+        `;
+        listContainer.appendChild(item);
+      });
+    }
+
+    // Delete template
+    function deleteTemplate(templateId) {
+      if (confirm(`Delete template "${customTemplates[templateId].name}"?`)) {
+        delete customTemplates[templateId];
+        saveCustomTemplates(customTemplates);
+        updateTemplatesList();
+        showToast('Template deleted');
+      }
+    }
+
+    // Export templates
+    function exportTemplates() {
+      const dataStr = JSON.stringify(customTemplates, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'signature-templates.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Templates exported');
+    }
+
+    // Import templates
+    function importTemplates(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          
+          // Merge with existing templates
+          Object.entries(imported).forEach(([id, template]) => {
+            customTemplates[id] = template;
+          });
+          
+          saveCustomTemplates(customTemplates);
+          updateTemplatesList();
+          showToast('Templates imported successfully');
+        } catch (err) {
+          showToast('Failed to import templates');
+          console.error(err);
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = ''; // Reset input
+    }
+
+    // Parse URL parameters
+    function parseUrlParams() {
+      const params = new URLSearchParams(window.location.search);
+      
+      // Pre-fill name
+      if (params.has('name')) {
+        signerName.value = decodeURIComponent(params.get('name'));
+      }
+      
+      // Pre-fill policy number
+      if (params.has('policy')) {
+        policyNumber.value = decodeURIComponent(params.get('policy'));
+      }
+      
+      // Auto-load template
+      if (params.has('template')) {
+        const templateName = params.get('template');
+        if (formTemplates[templateName]) {
+          // Wait for PDF to load then apply template
+          setTimeout(() => {
+            if (pagesState.length > 0) {
+              applyTemplate(templateName);
+            }
+          }, 1000);
+        }
+      }
+      
+      // Auto-open file dialog
+      if (params.has('autoload')) {
+        setTimeout(() => {
+          fileInput.click();
+        }, 500);
+      }
+    }
+
+    // PWA Install Support
+    let deferredPrompt;
+    
+    window.addEventListener('beforeinstallprompt', (e) => {
+      // Prevent Chrome 67 and earlier from automatically showing the prompt
+      e.preventDefault();
+      // Stash the event so it can be triggered later
+      deferredPrompt = e;
+      
+      // Create install button if not exists
+      if (!document.getElementById('installBtn')) {
+        const installBtn = document.createElement('button');
+        installBtn.id = 'installBtn';
+        installBtn.className = 'btn success small';
+        installBtn.innerHTML = '📱 Install App';
+        installBtn.style.marginLeft = 'auto';
+        installBtn.onclick = async () => {
+          if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+              showToast('App installed successfully!');
+            }
+            deferredPrompt = null;
+            installBtn.style.display = 'none';
+          }
+        };
+        document.querySelector('.toolbar').appendChild(installBtn);
+      }
+    });
+    
+    // Register service worker for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(reg => console.log('Service Worker registered'))
+        .catch(err => console.log('Service Worker registration failed'));
+    }
+    
+    // Handle app installed
+    window.addEventListener('appinstalled', () => {
+      showToast('App installed! You can now use it offline.');
+      const installBtn = document.getElementById('installBtn');
+      if (installBtn) installBtn.style.display = 'none';
+    });
+
+    // Show/hide save template button based on boxes
+    function updateSaveTemplateButton() {
+      const btn = document.getElementById('btnSaveTemplate');
+      if (signatureBoxes.length > 0) {
+        btn.style.display = 'inline-flex';
+      } else {
+        btn.style.display = 'none';
+      }
+    }
+    
+    // Add event listener for save template button
+    document.getElementById('btnSaveTemplate').addEventListener('click', () => {
+      showModal('templateModal');
+      updateTemplatesList();
+    });
+
     // Initialize
     window.addEventListener('load', () => {
       setMode('pen');
-      setTimeout(() => {
-        showToast('Tap "Open" to load a PDF, then use Pen to sign', 4000);
-      }, 500);
+      parseUrlParams();
+      updateTemplateSelector(); // Load custom templates into dropdown
+      
+      // Show install prompt if not installed
+      if (window.matchMedia('(display-mode: browser)').matches) {
+        setTimeout(() => {
+          showToast('Tap "Open" to load a PDF, then use Pen to sign', 4000);
+        }, 500);
+      }
     });
 
     // Prevent accidental navigation
