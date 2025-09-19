@@ -1,12 +1,15 @@
 {
+  "id": "/?source=pwa",
   "name": "Bill Layne Insurance Signature App",
   "short_name": "BLI Signature",
-  "description": "Professional electronic signature application for insurance documents",
+  "description": "Professional electronic signature application for insurance documents. Cross-platform, offline-capable, and secure.",
   "start_url": "./index.html",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1a5f7a",
   "orientation": "portrait",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "icon-192.png",
@@ -33,10 +36,5 @@
       "url": "./index.html?template=home_insurance&autoload=true",
       "description": "Open with home insurance template"
     }
-  ],
-  "features": [
-    "Cross Platform",
-    "Offline Capable",
-    "Secure"
   ]
 }
