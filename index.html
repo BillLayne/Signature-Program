@@ -901,9 +901,27 @@
 
     <select id="templateSelector" class="btn secondary small" style="padding: 8px 12px; border-radius: 12px; border: none; background: #f0f3f7; min-height: 36px;">
       <option value="">📋 Templates</option>
-      <option value="auto_claim">Auto Claim</option>
-      <option value="home_insurance">Home Insurance</option>
-      <option value="consent_form">Consent Form</option>
+      <optgroup label="Auto Insurance">
+        <option value="nc_grange_auto">NC Grange Auto</option>
+        <option value="progressive_auto">Progressive Auto</option>
+        <option value="national_gen_auto">National Gen Auto</option>
+        <option value="auto_claim">Auto Claim</option>
+      </optgroup>
+      <optgroup label="Home Insurance">
+        <option value="nationwide_home">Nationwide Home</option>
+        <option value="travelers_home">Travelers Home</option>
+        <option value="home_insurance">Home Application</option>
+        <option value="home_claim">Home Claim</option>
+      </optgroup>
+      <optgroup label="Specialty Insurance">
+        <option value="foremost_mobile">Foremost Mobile</option>
+        <option value="alamance_farm">Alamance Farm</option>
+      </optgroup>
+      <optgroup label="General Forms">
+        <option value="consent_form">Consent Form</option>
+        <option value="no_loss">No Loss Letter</option>
+        <option value="cancellation">Cancellation</option>
+      </optgroup>
       <option value="__divider__" disabled>──────────</option>
       <option value="__manage__">⚙️ Manage Templates...</option>
     </select>
@@ -969,6 +987,11 @@
       <div class="form-group">
         <label>Policy Number (Optional)</label>
         <input id="policyNumber" type="text" placeholder="e.g., NC-123456" />
+      </div>
+
+      <div class="form-group">
+        <label>Phone Number (Optional)</label>
+        <input id="phoneNumber" type="text" placeholder="e.g., 336-835-1993" />
       </div>
 
       <div class="consent-text">
@@ -1095,7 +1118,7 @@
     let pdfDoc = null;
     let pagesState = [];
     let currentMode = 'pen'; // 'pen', 'box', or 'sign'
-    let consent = { given: false, name: '', policy: '', timestamp: null };
+    let consent = { given: false, name: '', policy: '', phone: '', timestamp: null };
     let signatureBoxes = [];
     let selectedBox = null;
     let currentPageIndex = 0;
@@ -1119,6 +1142,7 @@
     const consentStatus = el('consentStatus');
     const signerName = el('signerName');
     const policyNumber = el('policyNumber');
+    const phoneNumber = el('phoneNumber');
     const consentCheck = el('consentCheck');
     const btnConsent = el('btnConsent');
     const penMode = el('penMode');
@@ -1366,7 +1390,14 @@
         updatePageNavigation();
       }
 
-      // Don't auto-add any signature boxes - let user add them manually
+      // Check if we should auto-apply a template from URL params
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('template') && !signatureBoxes.length) {
+        const templateName = urlParams.get('template');
+        setTimeout(() => {
+          applyTemplate(templateName);
+        }, 500);
+      }
     }
 
     async function renderPage(page, pageNum) {
@@ -1988,7 +2019,7 @@
         boxInfo.signed = true;
       }
 
-      showToast(isDateBox ? 'Date added' : 'Signature added');
+      showToast(boxType === 'date' ? 'Date added' : 'Signature added');
     }
 
     // Page navigation
@@ -2088,6 +2119,7 @@
       consent.given = true;
       consent.name = signerName.value.trim();
       consent.policy = policyNumber.value.trim();
+      consent.phone = phoneNumber.value.trim();
       consent.timestamp = new Date().toISOString();
       
       // Generate confirmation ID when consent is given
@@ -2120,73 +2152,27 @@
       }
 
       try {
-        // Debug logging
         console.log('Starting print process...');
-        console.log('Current PDF bytes length:', currentPdfBytes?.length);
-        console.log('Current PDF bytes type:', currentPdfBytes?.constructor?.name);
-        console.log('PDF header (first 5 bytes):', Array.from(currentPdfBytes.slice(0, 5)).map(b => String.fromCharCode(b)).join(''));
-        
         showToast('Preparing document for print...');
         
-        // Check if any canvas has content
-        let hasContent = false;
-        for (let state of pagesState) {
-          const imageData = state.context.getImageData(0, 0, state.canvas.width, state.canvas.height);
-          const pixels = imageData.data;
-          for (let i = 3; i < pixels.length; i += 4) {
-            if (pixels[i] > 0) {
-              hasContent = true;
-              break;
-            }
-          }
-          if (hasContent) break;
-        }
-        console.log('Canvas has content:', hasContent);
-        
         const signedPdf = await buildSignedPdf();
-        console.log('Signed PDF created, size:', signedPdf?.length);
-        console.log('Signed PDF type:', signedPdf?.constructor?.name);
-        
-        // Generate audit trail PDF
-        console.log('Generating audit trail PDF...');
         const auditPdf = await generateAuditPdf();
         
-        // Combine signed PDF with audit trail
         let finalPdf = signedPdf;
         if (auditPdf) {
-          console.log('Combining signed PDF with audit trail...');
           const combinedPdf = await combinePdfs(signedPdf, auditPdf);
           if (combinedPdf) {
             finalPdf = combinedPdf;
-            console.log('Combined PDF created, size:', finalPdf.length);
           }
         }
         
-        // Verify the final PDF is valid
-        if (!finalPdf || finalPdf.length === 0) {
-          throw new Error('Failed to generate PDF - empty result');
-        }
-        
-        // Create blob with proper type (using combined PDF)
         const blob = new Blob([finalPdf], { type: 'application/pdf' });
-        console.log('Blob created, size:', blob.size, 'type:', blob.type);
-        
-        if (blob.size === 0) {
-          throw new Error('Generated blob is empty');
-        }
-        
         const url = URL.createObjectURL(blob);
-        console.log('Blob URL created:', url);
         
-        // Try multiple print methods
-        
-        // Method 1: Open in new window/tab
+        // Open in new window for printing
         const printWindow = window.open(url, '_blank');
-        
         if (printWindow) {
-          // Wait for the PDF to load before printing
           printWindow.onload = function() {
-            console.log('Print window loaded');
             setTimeout(() => {
               try {
                 printWindow.print();
@@ -2195,98 +2181,12 @@
               }
             }, 500);
           };
-          
-          // Fallback print after timeout
-          setTimeout(() => {
-            try {
-              if (printWindow && !printWindow.closed) {
-                printWindow.print();
-              }
-            } catch (e) {
-              console.error('Fallback print failed:', e);
-            }
-          }, 2000);
-        } else {
-          // Method 2: Use iframe as fallback
-          console.log('Window.open blocked, trying iframe method...');
-          
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = url;
-          document.body.appendChild(iframe);
-          
-          iframe.onload = function() {
-            console.log('iFrame loaded');
-            setTimeout(async () => {
-              try {
-                iframe.contentWindow.print();
-              } catch (e) {
-                console.error('iFrame print failed:', e);
-                
-                // Method 3: Try base64 data URL method
-                console.log('Trying base64 data URL print method...');
-                const base64Success = await printWithBase64DataUrl();
-                
-                if (!base64Success) {
-                  // Method 4: Try embedded viewer method
-                  console.log('Trying embedded viewer print method...');
-                  const embedSuccess = await printWithEmbeddedViewer();
-                  
-                  if (!embedSuccess) {
-                    // Method 5: Download as final fallback
-                    console.log('All print methods failed, downloading instead...');
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = generateFileName();
-                    a.click();
-                    showToast('Print blocked - file downloaded instead');
-                  }
-                }
-              }
-              
-              // Clean up iframe
-              setTimeout(() => {
-                if (document.body.contains(iframe)) {
-                  document.body.removeChild(iframe);
-                }
-              }, 1000);
-            }, 500);
-          };
         }
-        
-        // Clean up blob URL after 1 minute
-        setTimeout(() => {
-          URL.revokeObjectURL(url);
-          console.log('Blob URL revoked');
-        }, 60000);
         
         showToast('Document opened for printing');
       } catch (err) {
         console.error('Print process failed:', err);
-        console.error('Error stack:', err.stack);
         showToast(`Print failed: ${err.message}`);
-        
-        // Emergency fallback - try to download the PDF with signatures and audit
-        try {
-          console.log('Attempting emergency download...');
-          const emergencyPdf = await buildSignedPdf();
-          const auditPdf = await generateAuditPdf();
-          
-          let finalEmergencyPdf = emergencyPdf;
-          if (emergencyPdf && auditPdf) {
-            const combined = await combinePdfs(emergencyPdf, auditPdf);
-            if (combined) {
-              finalEmergencyPdf = combined;
-            }
-          }
-          
-          if (finalEmergencyPdf && finalEmergencyPdf.length > 0) {
-            downloadBlob(generateFileName(), finalEmergencyPdf, 'application/pdf');
-            showToast('Print failed - file downloaded instead (with audit trail)');
-          }
-        } catch (e) {
-          console.error('Emergency download also failed:', e);
-        }
       }
     });
 
@@ -2383,37 +2283,17 @@
 
     async function buildSignedPdf() {
       console.log('buildSignedPdf: Starting...');
-      console.log('buildSignedPdf: currentPdfBytes length:', currentPdfBytes?.length);
-      console.log('buildSignedPdf: currentPdfBytes is Uint8Array:', currentPdfBytes instanceof Uint8Array);
       
       try {
-        // Ensure we have valid PDF bytes
         if (!currentPdfBytes || currentPdfBytes.length === 0) {
           throw new Error('No PDF bytes available');
         }
         
-        // Verify PDF header
-        const header = Array.from(currentPdfBytes.slice(0, 5)).map(b => String.fromCharCode(b)).join('');
-        console.log('buildSignedPdf: PDF header:', header);
-        if (!header.startsWith('%PDF')) {
-          throw new Error('Invalid PDF header');
-        }
-        
-        // Load the PDF with error handling
-        let pdfDoc;
-        try {
-          console.log('buildSignedPdf: Loading PDF document...');
-          pdfDoc = await PDFLib.PDFDocument.load(currentPdfBytes, {
-            ignoreEncryption: true,
-            throwOnInvalidObject: false
-          });
-          console.log('buildSignedPdf: PDF loaded successfully');
-        } catch (loadError) {
-          console.error('buildSignedPdf: Failed to load PDF:', loadError);
-          // Try creating a copy of the bytes
-          const pdfBytesCopy = new Uint8Array(currentPdfBytes);
-          pdfDoc = await PDFLib.PDFDocument.load(pdfBytesCopy);
-        }
+        // Load the PDF
+        const pdfDoc = await PDFLib.PDFDocument.load(currentPdfBytes, {
+          ignoreEncryption: true,
+          throwOnInvalidObject: false
+        });
         
         // Generate confirmation ID if not already generated
         if (!confirmationId) {
@@ -2429,19 +2309,14 @@
         pdfDoc.setCreationDate(new Date());
         pdfDoc.setModificationDate(new Date());
         
-        // Embed a standard font for the footer
+        // Embed fonts
         const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
         const helveticaBoldFont = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
-        
-        console.log('buildSignedPdf: Processing', pagesState.length, 'pages');
         
         // Embed drawings and signatures
         for (let i = 0; i < pagesState.length; i++) {
           const state = pagesState[i];
           const canvas = state.canvas;
-          
-          console.log(`buildSignedPdf: Processing page ${i + 1}`);
-          console.log(`buildSignedPdf: Canvas dimensions: ${canvas.width}x${canvas.height}`);
           
           // Check if canvas has any content
           const ctx = canvas.getContext('2d');
@@ -2450,29 +2325,20 @@
           let hasContent = false;
           
           for (let j = 3; j < pixels.length; j += 4) {
-            if (pixels[j] > 0) { // Check alpha channel
+            if (pixels[j] > 0) {
               hasContent = true;
               break;
             }
           }
           
-          console.log(`buildSignedPdf: Page ${i + 1} has content:`, hasContent);
-          
-          if (!hasContent) {
-            console.log(`buildSignedPdf: Skipping page ${i + 1} - no signatures/drawings`);
-            continue;
-          }
+          if (!hasContent) continue;
           
           try {
-            // Use toBlob for better compatibility
             const blob = await new Promise((resolve, reject) => {
               canvas.toBlob((blob) => {
                 if (blob) {
-                  console.log(`buildSignedPdf: Canvas blob created, size: ${blob.size}`);
                   resolve(blob);
                 } else {
-                  // Fallback to toDataURL
-                  console.log('buildSignedPdf: toBlob failed, using toDataURL fallback');
                   const dataUrl = canvas.toDataURL('image/png');
                   fetch(dataUrl)
                     .then(res => res.blob())
@@ -2483,18 +2349,12 @@
             });
             
             const arrayBuffer = await blob.arrayBuffer();
-            console.log(`buildSignedPdf: PNG array buffer size: ${arrayBuffer.byteLength}`);
             
-            if (arrayBuffer.byteLength === 0) {
-              console.warn(`buildSignedPdf: Empty PNG for page ${i + 1}, skipping`);
-              continue;
-            }
+            if (arrayBuffer.byteLength === 0) continue;
             
             const pngImage = await pdfDoc.embedPng(arrayBuffer);
             const page = pdfDoc.getPage(i);
             const { width, height } = page.getSize();
-            
-            console.log(`buildSignedPdf: PDF page size: ${width}x${height}`);
             
             page.drawImage(pngImage, {
               x: 0,
@@ -2503,15 +2363,12 @@
               height: height,
               opacity: 1
             });
-            
-            console.log(`buildSignedPdf: Drew image on page ${i + 1}`);
           } catch (imgError) {
-            console.error(`buildSignedPdf: Failed to process page ${i + 1}:`, imgError);
-            // Continue with other pages even if one fails
+            console.error(`Failed to process page ${i + 1}:`, imgError);
           }
         }
         
-        // Add confirmation ID footer to all pages
+        // Add footer to all pages
         const pages = pdfDoc.getPages();
         const footerText = `Confirmation ID: ${confirmationId}`;
         const signedDate = new Date().toLocaleString();
@@ -2520,7 +2377,7 @@
           const page = pages[i];
           const { width, height } = page.getSize();
           
-          // Draw footer background bar
+          // Draw footer background
           page.drawRectangle({
             x: 0,
             y: 0,
@@ -2530,16 +2387,16 @@
             opacity: 0.9
           });
           
-          // Add confirmation ID on the left
+          // Add confirmation ID
           page.drawText(footerText, {
             x: 10,
             y: 8,
             size: 9,
             font: helveticaBoldFont,
-            color: PDFLib.rgb(0.1, 0.37, 0.48) // Bill Layne Insurance blue
+            color: PDFLib.rgb(0.1, 0.37, 0.48)
           });
           
-          // Add page number in center
+          // Add page number
           page.drawText(`Page ${i + 1} of ${pages.length}`, {
             x: width / 2 - 30,
             y: 8,
@@ -2548,7 +2405,7 @@
             color: PDFLib.rgb(0.3, 0.3, 0.3)
           });
           
-          // Add signed date on the right
+          // Add signed date
           page.drawText(`Signed: ${signedDate}`, {
             x: width - 150,
             y: 8,
@@ -2556,38 +2413,11 @@
             font: helveticaFont,
             color: PDFLib.rgb(0.3, 0.3, 0.3)
           });
-          
-          // Add small branding
-          page.drawText('Bill Layne Insurance', {
-            x: width - 100,
-            y: height - 15,
-            size: 8,
-            font: helveticaFont,
-            color: PDFLib.rgb(0.5, 0.5, 0.5),
-            opacity: 0.5
-          });
         }
         
-        console.log('buildSignedPdf: Saving PDF...');
-        const pdfBytes = await pdfDoc.save();
-        console.log('buildSignedPdf: PDF saved, size:', pdfBytes.length);
-        
-        // Verify the output
-        if (!pdfBytes || pdfBytes.length === 0) {
-          throw new Error('PDF save returned empty result');
-        }
-        
-        // Verify PDF header in output
-        const outputHeader = Array.from(pdfBytes.slice(0, 5)).map(b => String.fromCharCode(b)).join('');
-        console.log('buildSignedPdf: Output PDF header:', outputHeader);
-        
-        return pdfBytes;
+        return await pdfDoc.save();
       } catch (error) {
         console.error('buildSignedPdf: Fatal error:', error);
-        console.error('buildSignedPdf: Error stack:', error.stack);
-        
-        // Return original PDF as fallback
-        console.log('buildSignedPdf: Returning original PDF as fallback');
         return currentPdfBytes;
       }
     }
@@ -2647,6 +2477,11 @@
     </div>
     
     <div class="info-row">
+      <strong>Phone Number:</strong>
+      <span>${consent.phone || 'N/A'}</span>
+    </div>
+    
+    <div class="info-row">
       <strong>Date & Time:</strong>
       <span>${new Date(consent.timestamp).toLocaleString()}</span>
     </div>
@@ -2703,16 +2538,13 @@
 
     async function generateAuditPdf() {
       try {
-        // Ensure confirmation ID exists
         if (!confirmationId) {
           confirmationId = generateConfirmationId();
         }
         
-        // Create a new PDF document for the audit trail
         const auditDoc = await PDFLib.PDFDocument.create();
         const page = auditDoc.addPage([612, 792]); // Letter size
         
-        // Embed fonts
         const helveticaFont = await auditDoc.embedFont(PDFLib.StandardFonts.Helvetica);
         const helveticaBoldFont = await auditDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
         const timesFont = await auditDoc.embedFont(PDFLib.StandardFonts.TimesRoman);
@@ -2747,7 +2579,7 @@
         
         yPosition = height - 110;
         
-        // Confirmation ID Section
+        // Confirmation ID
         page.drawRectangle({
           x: 40,
           y: yPosition - 30,
@@ -2814,71 +2646,13 @@
         const signerInfo = [
           `Name: ${consent.name}`,
           `Policy Number: ${consent.policy || 'N/A'}`,
+          `Phone Number: ${consent.phone || 'N/A'}`,
           `Consent Given: ${consent.given ? 'Yes' : 'No'}`,
           `Consent Timestamp: ${new Date(consent.timestamp).toISOString()}`
         ];
         
         signerInfo.forEach(info => {
           page.drawText(info, {
-            x: 70,
-            y: yPosition,
-            size: 10,
-            font: helveticaFont,
-            color: PDFLib.rgb(0.2, 0.2, 0.2)
-          });
-          yPosition -= 18;
-        });
-        
-        yPosition -= 10;
-        
-        // Signature Fields Detail
-        page.drawText('SIGNATURE FIELDS DETAIL', {
-          x: 50,
-          y: yPosition,
-          size: 12,
-          font: helveticaBoldFont,
-          color: PDFLib.rgb(0, 0, 0)
-        });
-        
-        yPosition -= 25;
-        signatureBoxes.forEach((box, index) => {
-          const isSigned = box.element.classList.contains('signed');
-          const label = box.element.querySelector('.signature-box-label').textContent;
-          const pageNum = parseInt(box.element.dataset.pageIndex) + 1;
-          
-          page.drawText(`${index + 1}. ${label} (Page ${pageNum}): ${isSigned ? '✓ SIGNED' : '○ NOT SIGNED'}`, {
-            x: 70,
-            y: yPosition,
-            size: 10,
-            font: helveticaFont,
-            color: isSigned ? PDFLib.rgb(0, 0.5, 0) : PDFLib.rgb(0.5, 0.5, 0.5)
-          });
-          yPosition -= 18;
-        });
-        
-        yPosition -= 10;
-        
-        // Technical Details
-        page.drawText('TECHNICAL DETAILS', {
-          x: 50,
-          y: yPosition,
-          size: 12,
-          font: helveticaBoldFont,
-          color: PDFLib.rgb(0, 0, 0)
-        });
-        
-        yPosition -= 25;
-        const techDetails = [
-          `Browser: ${navigator.userAgent.split(' ').slice(0, 3).join(' ')}`,
-          `Platform: ${navigator.platform}`,
-          `Screen Resolution: ${screen.width}x${screen.height}`,
-          `Timestamp: ${new Date().toISOString()}`
-        ];
-        
-        techDetails.forEach(detail => {
-          // Truncate long text
-          const displayText = detail.length > 70 ? detail.substring(0, 67) + '...' : detail;
-          page.drawText(displayText, {
             x: 70,
             y: yPosition,
             size: 10,
@@ -2897,22 +2671,6 @@
           color: PDFLib.rgb(0.95, 0.95, 0.95)
         });
         
-        page.drawText('This audit trail is generated automatically and provides a complete record', {
-          x: 50,
-          y: 35,
-          size: 9,
-          font: timesFont,
-          color: PDFLib.rgb(0.3, 0.3, 0.3)
-        });
-        
-        page.drawText('of the electronic signature process in compliance with ESIGN and UETA regulations.', {
-          x: 50,
-          y: 23,
-          size: 9,
-          font: timesFont,
-          color: PDFLib.rgb(0.3, 0.3, 0.3)
-        });
-        
         page.drawText('Bill Layne Insurance Agency | 1283 N Bridge St, Elkin NC 28621 | (336) 835-1993', {
           x: 50,
           y: 10,
@@ -2921,7 +2679,6 @@
           color: PDFLib.rgb(0.4, 0.4, 0.4)
         });
         
-        // Set document properties
         auditDoc.setTitle('Electronic Signature Audit Trail');
         auditDoc.setAuthor('Bill Layne Insurance Agency');
         auditDoc.setSubject(`Audit Trail for Confirmation ID: ${confirmationId}`);
@@ -2946,163 +2703,6 @@
       URL.revokeObjectURL(url);
     }
 
-    // Alternative print method using base64 data URL
-    async function printWithBase64DataUrl() {
-      try {
-        console.log('printWithBase64DataUrl: Starting base64 print method...');
-        const signedPdf = await buildSignedPdf();
-        
-        if (!signedPdf || signedPdf.length === 0) {
-          throw new Error('Failed to generate signed PDF');
-        }
-        
-        // Convert to base64 more efficiently for large PDFs
-        let base64 = '';
-        const bytes = new Uint8Array(signedPdf);
-        const chunkSize = 0x8000; // Process in chunks to avoid stack overflow
-        
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-          const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-          base64 += btoa(String.fromCharCode.apply(null, chunk));
-        }
-        
-        const dataUrl = `data:application/pdf;base64,${base64}`;
-        console.log('printWithBase64DataUrl: Data URL created, length:', dataUrl.length);
-        
-        // Open in new window
-        const printWindow = window.open(dataUrl, '_blank');
-        
-        if (printWindow) {
-          // Try to trigger print after a delay
-          setTimeout(() => {
-            try {
-              printWindow.print();
-            } catch (e) {
-              console.error('printWithBase64DataUrl: Print failed:', e);
-            }
-          }, 2000);
-          
-          return true;
-        }
-        
-        return false;
-      } catch (error) {
-        console.error('printWithBase64DataUrl: Failed:', error);
-        return false;
-      }
-    }
-
-    // Alternative print method using embedded viewer
-    async function printWithEmbeddedViewer() {
-      try {
-        console.log('printWithEmbeddedViewer: Starting alternative print method...');
-        const signedPdf = await buildSignedPdf();
-        
-        if (!signedPdf || signedPdf.length === 0) {
-          throw new Error('Failed to generate signed PDF');
-        }
-        
-        // Convert PDF to base64 efficiently
-        let base64 = '';
-        const bytes = new Uint8Array(signedPdf);
-        const chunkSize = 0x8000;
-        
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-          const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-          base64 += btoa(String.fromCharCode.apply(null, chunk));
-        }
-        
-        // Create HTML with embedded PDF viewer
-        const printHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Print Document</title>
-  <style>
-    @media print {
-      body { margin: 0; }
-      .no-print { display: none !important; }
-    }
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: Arial, sans-serif;
-    }
-    .print-header {
-      padding: 20px;
-      background: #f0f0f0;
-      text-align: center;
-    }
-    .print-header button {
-      padding: 10px 20px;
-      margin: 0 10px;
-      font-size: 16px;
-      cursor: pointer;
-      background: #1a5f7a;
-      color: white;
-      border: none;
-      border-radius: 5px;
-    }
-    .print-header button:hover {
-      background: #457b9d;
-    }
-    #pdfContainer {
-      width: 100%;
-      height: calc(100vh - 100px);
-    }
-    @media print {
-      #pdfContainer {
-        height: 100vh;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="print-header no-print">
-    <h2>Bill Layne Insurance - Signed Document</h2>
-    <button onclick="window.print()">🖨️ Print Document</button>
-    <button onclick="window.close()">❌ Close</button>
-  </div>
-  <div id="pdfContainer">
-    <embed src="data:application/pdf;base64,${base64}" 
-           type="application/pdf" 
-           width="100%" 
-           height="100%"
-           id="pdfEmbed">
-  </div>
-  <scr` + `ipt>
-    // Auto-print after load
-    window.onload = function() {
-      setTimeout(function() {
-        // Try to print
-        try {
-          window.print();
-        } catch(e) {
-          console.error('Auto-print failed:', e);
-        }
-      }, 1000);
-    };
-  </scr` + `ipt>
-</body>
-</html>`;
-        
-        // Open in new window
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-          printWindow.document.write(printHtml);
-          printWindow.document.close();
-          console.log('printWithEmbeddedViewer: Print window created with embedded PDF');
-        } else {
-          throw new Error('Failed to open print window');
-        }
-        
-        return true;
-      } catch (error) {
-        console.error('printWithEmbeddedViewer: Failed:', error);
-        return false;
-      }
-    }
-
     // Load custom templates from localStorage
     function loadCustomTemplates() {
       const stored = localStorage.getItem('customTemplates');
@@ -3118,14 +2718,90 @@
     // Combine built-in and custom templates
     let customTemplates = loadCustomTemplates();
     
-    // Templates for common insurance forms (built-in)
+    // Templates for common insurance forms (built-in) - EXPANDED VERSION
     const builtInTemplates = {
+      // Auto Insurance Templates
+      'nc_grange_auto': {
+        name: 'NC Grange Auto Application',
+        boxes: [
+          { page: 0, x: 10, y: 70, width: 35, height: 10, label: 'Applicant Signature', type: 'signature' },
+          { page: 0, x: 55, y: 70, width: 20, height: 8, label: 'Date', type: 'date' },
+          { page: 0, x: 10, y: 85, width: 35, height: 10, label: 'Co-Applicant Signature', type: 'signature' },
+          { page: 0, x: 55, y: 85, width: 20, height: 8, label: 'Date', type: 'date' }
+        ]
+      },
+      'progressive_auto': {
+        name: 'Progressive Auto Application',
+        boxes: [
+          { page: 0, x: 10, y: 75, width: 35, height: 10, label: 'Named Insured', type: 'signature' },
+          { page: 0, x: 55, y: 75, width: 20, height: 8, label: 'Date', type: 'date' },
+          { page: 0, x: 10, y: 88, width: 15, height: 8, label: 'Initials', type: 'initial' }
+        ]
+      },
+      'national_gen_auto': {
+        name: 'National General Auto Application',
+        boxes: [
+          { page: 0, x: 10, y: 72, width: 35, height: 10, label: 'Policyholder Signature', type: 'signature' },
+          { page: 0, x: 55, y: 72, width: 20, height: 8, label: 'Date', type: 'date' },
+          { page: 0, x: 10, y: 60, width: 5, height: 5, label: 'Electronic Consent', type: 'checkbox' }
+        ]
+      },
+      
+      // Home Insurance Templates  
+      'nationwide_home': {
+        name: 'Nationwide Home Application',
+        boxes: [
+          { page: 0, x: 10, y: 68, width: 35, height: 10, label: 'Owner Signature', type: 'signature' },
+          { page: 0, x: 55, y: 68, width: 20, height: 8, label: 'Date', type: 'date' },
+          { page: 0, x: 10, y: 82, width: 35, height: 10, label: 'Co-Owner Signature', type: 'signature' },
+          { page: 0, x: 55, y: 82, width: 20, height: 8, label: 'Date', type: 'date' }
+        ]
+      },
+      'travelers_home': {
+        name: 'Travelers Home Application',
+        boxes: [
+          { page: 0, x: 10, y: 70, width: 35, height: 10, label: 'Homeowner Signature', type: 'signature' },
+          { page: 0, x: 55, y: 70, width: 20, height: 8, label: 'Date', type: 'date' },
+          { page: 0, x: 10, y: 55, width: 15, height: 8, label: 'Initials', type: 'initial' }
+        ]
+      },
+      
+      // Specialty Insurance Templates
+      'foremost_mobile': {
+        name: 'Foremost Mobile Home Application',
+        boxes: [
+          { page: 0, x: 10, y: 65, width: 35, height: 10, label: 'Primary Resident', type: 'signature' },
+          { page: 0, x: 55, y: 65, width: 20, height: 8, label: 'Date', type: 'date' },
+          { page: 0, x: 10, y: 80, width: 35, height: 10, label: 'Co-Resident', type: 'signature' },
+          { page: 0, x: 55, y: 80, width: 20, height: 8, label: 'Date', type: 'date' }
+        ]
+      },
+      'alamance_farm': {
+        name: 'Alamance Farm/Ranch Application',
+        boxes: [
+          { page: 0, x: 10, y: 70, width: 35, height: 10, label: 'Farm Owner', type: 'signature' },
+          { page: 0, x: 55, y: 70, width: 20, height: 8, label: 'Date', type: 'date' },
+          { page: 0, x: 10, y: 85, width: 35, height: 10, label: 'Spouse/Co-Owner', type: 'signature' },
+          { page: 0, x: 55, y: 85, width: 20, height: 8, label: 'Date', type: 'date' }
+        ]
+      },
+      
+      // Claims and General Forms
       'auto_claim': {
         name: 'Auto Insurance Claim',
         boxes: [
-          { page: 0, x: 10, y: 60, width: 35, height: 10, label: 'Policyholder Signature', type: 'signature' },
+          { page: 0, x: 10, y: 60, width: 35, height: 10, label: 'Claimant Signature', type: 'signature' },
           { page: 0, x: 55, y: 60, width: 20, height: 8, label: 'Date', type: 'date' },
           { page: 0, x: 10, y: 75, width: 15, height: 8, label: 'Initials', type: 'initial' }
+        ]
+      },
+      'home_claim': {
+        name: 'Home Insurance Claim',
+        boxes: [
+          { page: 0, x: 10, y: 65, width: 35, height: 10, label: 'Property Owner', type: 'signature' },
+          { page: 0, x: 55, y: 65, width: 20, height: 8, label: 'Date', type: 'date' },
+          { page: 0, x: 10, y: 80, width: 5, height: 5, label: 'Emergency Repairs', type: 'checkbox' },
+          { page: 0, x: 20, y: 80, width: 5, height: 5, label: 'Temporary Housing', type: 'checkbox' }
         ]
       },
       'home_insurance': {
@@ -3143,6 +2819,23 @@
           { page: 0, x: 10, y: 85, width: 35, height: 10, label: 'Signature', type: 'signature' },
           { page: 0, x: 55, y: 85, width: 20, height: 8, label: 'Date', type: 'date' },
           { page: 0, x: 10, y: 70, width: 30, height: 8, label: 'Printed Name', type: 'text' }
+        ]
+      },
+      'no_loss': {
+        name: 'No Loss Letter',
+        boxes: [
+          { page: 0, x: 10, y: 75, width: 35, height: 10, label: 'Insured Signature', type: 'signature' },
+          { page: 0, x: 55, y: 75, width: 20, height: 8, label: 'Date', type: 'date' },
+          { page: 0, x: 10, y: 60, width: 5, height: 5, label: 'No Claims', type: 'checkbox' },
+          { page: 0, x: 20, y: 60, width: 5, height: 5, label: 'No Losses', type: 'checkbox' }
+        ]
+      },
+      'cancellation': {
+        name: 'Policy Cancellation Request',
+        boxes: [
+          { page: 0, x: 10, y: 70, width: 35, height: 10, label: 'Policyholder Signature', type: 'signature' },
+          { page: 0, x: 55, y: 70, width: 20, height: 8, label: 'Date', type: 'date' },
+          { page: 0, x: 10, y: 85, width: 30, height: 8, label: 'Reason for Cancellation', type: 'text' }
         ]
       }
     };
@@ -3233,30 +2926,25 @@
     function updateTemplateSelector() {
       const selector = document.getElementById('templateSelector');
       
-      // Clear existing options
-      selector.innerHTML = `
-        <option value="">📋 Templates</option>
-        <option value="auto_claim">Auto Claim</option>
-        <option value="home_insurance">Home Insurance</option>
-        <option value="consent_form">Consent Form</option>
-      `;
+      // Keep the optgroups structure but add custom templates
+      const customOptions = Object.entries(customTemplates).map(([id, template]) => 
+        `<option value="${id}">📌 ${template.name}</option>`
+      ).join('');
       
-      // Add custom templates
-      if (Object.keys(customTemplates).length > 0) {
-        selector.innerHTML += '<option value="__divider__" disabled>──────────</option>';
+      if (customOptions) {
+        // Find the divider and insert custom templates before it
+        const optgroupEnd = '</optgroup>';
+        const lastOptgroupEnd = selector.innerHTML.lastIndexOf(optgroupEnd);
         
-        Object.entries(customTemplates).forEach(([id, template]) => {
-          const option = document.createElement('option');
-          option.value = id;
-          option.textContent = `📌 ${template.name}`;
-          selector.appendChild(option);
-        });
+        if (lastOptgroupEnd > -1) {
+          selector.innerHTML = 
+            selector.innerHTML.slice(0, lastOptgroupEnd + optgroupEnd.length) +
+            '<optgroup label="Custom Templates">' +
+            customOptions +
+            '</optgroup>' +
+            selector.innerHTML.slice(lastOptgroupEnd + optgroupEnd.length);
+        }
       }
-      
-      selector.innerHTML += `
-        <option value="__divider2__" disabled>──────────</option>
-        <option value="__manage__">⚙️ Manage Templates...</option>
-      `;
     }
 
     // Update templates list in modal
@@ -3350,17 +3038,16 @@
         policyNumber.value = decodeURIComponent(params.get('policy'));
       }
       
+      // Pre-fill phone number
+      if (params.has('phone')) {
+        phoneNumber.value = decodeURIComponent(params.get('phone'));
+      }
+      
       // Auto-load template
       if (params.has('template')) {
         const templateName = params.get('template');
-        if (formTemplates[templateName]) {
-          // Wait for PDF to load then apply template
-          setTimeout(() => {
-            if (pagesState.length > 0) {
-              applyTemplate(templateName);
-            }
-          }, 1000);
-        }
+        // Store for later application after PDF loads
+        window.pendingTemplate = templateName;
       }
       
       // Auto-open file dialog
@@ -3375,12 +3062,9 @@
     let deferredPrompt;
     
     window.addEventListener('beforeinstallprompt', (e) => {
-      // Prevent Chrome 67 and earlier from automatically showing the prompt
       e.preventDefault();
-      // Stash the event so it can be triggered later
       deferredPrompt = e;
       
-      // Create install button if not exists
       if (!document.getElementById('installBtn')) {
         const installBtn = document.createElement('button');
         installBtn.id = 'installBtn';
