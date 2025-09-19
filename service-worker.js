@@ -2,8 +2,9 @@
 const CACHE_NAME = 'bli-signature-v1.0.0';
 const urlsToCache = [
   './',
-  './improved-signature-app claude updated with print.html',
+  './index.html',
   './manifest.json',
+  './template-link-generator.html',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js',
   'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js',
@@ -16,7 +17,14 @@ self.addEventListener('install', event => {
     caches.open(CACHE_NAME)
       .then(cache => {
         console.log('Opened cache');
-        return cache.addAll(urlsToCache);
+        // Try to cache each URL, but don't fail if some are missing
+        return Promise.allSettled(
+          urlsToCache.map(url => 
+            cache.add(url).catch(err => {
+              console.warn(`Failed to cache ${url}:`, err);
+            })
+          )
+        );
       })
       .then(() => self.skipWaiting())
   );
