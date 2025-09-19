@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bill Layne Insurance - Quick Link Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1a5f7a 0%, #457b9d 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .logo {
+            width: 180px;
+            margin-bottom: 15px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .form-section {
+            padding: 30px 20px;
+        }
+
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .template-btn {
+            padding: 15px 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .template-btn:hover {
+            border-color: #1a5f7a;
+            background: #e8f4f8;
+            transform: translateY(-2px);
+        }
+
+        .template-btn.selected {
+            border-color: #1a5f7a;
+            background: #1a5f7a;
+            color: white;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #1a5f7a;
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            background: #f8f9fa;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #1a5f7a;
+            background: white;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: linear-gradient(135deg, #1a5f7a 0%, #457b9d 100%);
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(26, 95, 122, 0.3);
+        }
+
+        .btn.success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+
+        .link-display {
+            background: #f0f8ff;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #1a5f7a;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 13px;
+            margin: 20px 0;
+            display: none;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .link-display.show {
+            display: block;
+        }
+
+        .quick-actions {
+            display: none;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .quick-actions.show {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .action-btn {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            font-size: 14px;
+            text-decoration: none;
+            color: #333;
+        }
+
+        .action-btn:hover {
+            border-color: #1a5f7a;
+            background: #f0f8ff;
+        }
+
+        .success-msg {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 10px;
+            display: none;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .success-msg.show {
+            display: block;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            font-size: 12px;
+            background: #f8f9fa;
+        }
+
+        .saved-links {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .saved-links h3 {
+            color: #1a5f7a;
+            margin-bottom: 15px;
+        }
+
+        .link-history {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .history-item button {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 5px;
+            background: #1a5f7a;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        @media (max-width: 600px) {
+            .template-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="https://i.imgur.com/cBAgeX8.png" alt="Bill Layne Insurance" class="logo">
+            <h1>Quick Signature Link Generator</h1>
+            <p>Select template → Enter info → Send link</p>
+        </div>
+
+        <div class="form-section">
+            <!-- Template Selection -->
+            <label>1. Select Application Type:</label>
+            <div class="template-grid" id="templateGrid">
+                <!-- Common Insurance Forms -->
+                <div class="template-btn" data-template="nc_grange_auto">NC Grange Auto</div>
+                <div class="template-btn" data-template="progressive_auto">Progressive Auto</div>
+                <div class="template-btn" data-template="nationwide_home">Nationwide Home</div>
+                <div class="template-btn" data-template="travelers_home">Travelers Home</div>
+                <div class="template-btn" data-template="foremost_mobile">Foremost Mobile</div>
+                <div class="template-btn" data-template="alamance_farm">Alamance Farm</div>
+                <div class="template-btn" data-template="national_gen_auto">National Gen Auto</div>
+                <div class="template-btn" data-template="consent_form">Consent Form</div>
+                <div class="template-btn" data-template="auto_claim">Auto Claim</div>
+                <div class="template-btn" data-template="home_claim">Home Claim</div>
+                <div class="template-btn" data-template="no_loss">No Loss Letter</div>
+                <div class="template-btn" data-template="cancellation">Cancellation</div>
+            </div>
+
+            <!-- Customer Information -->
+            <div class="form-group">
+                <label>2. Customer Name:</label>
+                <input type="text" id="customerName" placeholder="John Smith" required>
+            </div>
+
+            <div class="form-group">
+                <label>3. Policy Number (Optional):</label>
+                <input type="text" id="policyNumber" placeholder="POL-123456">
+            </div>
+
+            <div class="form-group">
+                <label>4. Phone Number (Optional):</label>
+                <input type="tel" id="phoneNumber" placeholder="336-835-1993">
+            </div>
+
+            <button class="btn" onclick="generateLink()">
+                Generate Signature Link
+            </button>
+
+            <!-- Generated Link Display -->
+            <div class="link-display" id="linkDisplay"></div>
+
+            <!-- Quick Actions -->
+            <div class="quick-actions" id="quickActions">
+                <button class="action-btn" onclick="copyLink()">
+                    📋 Copy Link
+                </button>
+                <a class="action-btn" id="textLink" href="#">
+                    💬 Text Link
+                </a>
+                <button class="action-btn" onclick="testLink()">
+                    🔗 Test Link
+                </button>
+                <button class="action-btn" onclick="saveToHistory()">
+                    💾 Save
+                </button>
+            </div>
+
+            <div class="success-msg" id="successMsg"></div>
+
+            <!-- Saved Links History -->
+            <div class="saved-links">
+                <h3>Recent Links</h3>
+                <div class="link-history" id="linkHistory"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p><strong>Bill Layne Insurance Agency</strong></p>
+            <p>1283 N Bridge St, Elkin NC 28621</p>
+            <p>336-835-1993 | Save@BillLayneInsurance.com</p>
+        </div>
+    </div>
+
+    <script>
+        let selectedTemplate = '';
+        let generatedLink = '';
+
+        // Template selection
+        document.querySelectorAll('.template-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.template-btn').forEach(b => b.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedTemplate = this.dataset.template;
+            });
+        });
+
+        function generateLink() {
+            const name = document.getElementById('customerName').value.trim();
+            
+            if (!selectedTemplate) {
+                showMessage('Please select an application type', 'error');
+                return;
+            }
+            
+            if (!name) {
+                showMessage('Please enter customer name', 'error');
+                return;
+            }
+
+            const policy = document.getElementById('policyNumber').value.trim();
+            const phone = document.getElementById('phoneNumber').value.trim();
+
+            // Build URL parameters
+            const params = new URLSearchParams();
+            params.append('name', name);
+            if (policy) params.append('policy', policy);
+            if (phone) params.append('phone', phone);
+            params.append('template', selectedTemplate);
+            params.append('autoload', 'true'); // Auto-open file picker
+
+            // Generate the link
+            generatedLink = `https://billlayne.github.io/insurance-app/?${params.toString()}`;
+
+            // Display the link
+            const linkDisplay = document.getElementById('linkDisplay');
+            linkDisplay.textContent = generatedLink;
+            linkDisplay.classList.add('show');
+
+            // Update SMS link
+            const textLink = document.getElementById('textLink');
+            const smsBody = `Hi ${name}, please click this link to sign your insurance application: ${generatedLink}`;
+            textLink.href = phone ? `sms:${phone.replace(/\D/g, '')}?body=${encodeURIComponent(smsBody)}` : '#';
+
+            // Show quick actions
+            document.getElementById('quickActions').classList.add('show');
+            
+            showMessage('Link generated successfully!', 'success');
+            
+            // Auto-save to history
+            saveToHistory();
+        }
+
+        function copyLink() {
+            if (!generatedLink) return;
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(generatedLink).then(() => {
+                    showMessage('Link copied to clipboard!', 'success');
+                });
+            } else {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = generatedLink;
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showMessage('Link copied to clipboard!', 'success');
+            }
+        }
+
+        function testLink() {
+            if (generatedLink) {
+                window.open(generatedLink, '_blank');
+            }
+        }
+
+        function showMessage(message, type) {
+            const msg = document.getElementById('successMsg');
+            msg.textContent = message;
+            msg.style.background = type === 'error' ? '#f8d7da' : '#d4edda';
+            msg.style.color = type === 'error' ? '#721c24' : '#155724';
+            msg.classList.add('show');
+            
+            setTimeout(() => {
+                msg.classList.remove('show');
+            }, 3000);
+        }
+
+        function saveToHistory() {
+            if (!generatedLink) return;
+            
+            const history = JSON.parse(localStorage.getItem('linkHistory') || '[]');
+            const entry = {
+                name: document.getElementById('customerName').value,
+                template: selectedTemplate,
+                link: generatedLink,
+                timestamp: new Date().toISOString()
+            };
+            
+            history.unshift(entry);
+            if (history.length > 10) history.pop(); // Keep only last 10
+            
+            localStorage.setItem('linkHistory', JSON.stringify(history));
+            updateHistoryDisplay();
+        }
+
+        function updateHistoryDisplay() {
+            const history = JSON.parse(localStorage.getItem('linkHistory') || '[]');
+            const container = document.getElementById('linkHistory');
+            
+            if (history.length === 0) {
+                container.innerHTML = '<p style="color: #666; text-align: center;">No recent links</p>';
+                return;
+            }
+            
+            container.innerHTML = history.map((entry, index) => `
+                <div class="history-item">
+                    <div>
+                        <strong>${entry.name}</strong><br>
+                        <small>${entry.template.replace(/_/g, ' ')} - ${new Date(entry.timestamp).toLocaleDateString()}</small>
+                    </div>
+                    <button onclick="copyHistoryLink(${index})">Copy</button>
+                </div>
+            `).join('');
+        }
+
+        function copyHistoryLink(index) {
+            const history = JSON.parse(localStorage.getItem('linkHistory') || '[]');
+            const link = history[index]?.link;
+            
+            if (link && navigator.clipboard) {
+                navigator.clipboard.writeText(link).then(() => {
+                    showMessage('Link copied!', 'success');
+                });
+            }
+        }
+
+        // Initialize
+        updateHistoryDisplay();
+
+        // Auto-format phone number
+        document.getElementById('phoneNumber').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length >= 6) {
+                value = value.slice(0, 3) + '-' + value.slice(3, 6) + '-' + value.slice(6, 10);
+            } else if (value.length >= 3) {
+                value = value.slice(0, 3) + '-' + value.slice(3);
+            }
+            e.target.value = value;
+        });
+    </script>
+</body>
+</html>
