@@ -2,7 +2,7 @@
   "name": "Bill Layne Insurance Signature App",
   "short_name": "BLI Signature",
   "description": "Professional electronic signature application for insurance documents",
-  "start_url": "./improved-signature-app claude updated with print.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1a5f7a",
@@ -25,12 +25,12 @@
   "shortcuts": [
     {
       "name": "Auto Claim Form",
-      "url": "./improved-signature-app claude updated with print.html?template=auto_claim&autoload=true",
+      "url": "./index.html?template=auto_claim&autoload=true",
       "description": "Open with auto claim template"
     },
     {
       "name": "Home Insurance",
-      "url": "./improved-signature-app claude updated with print.html?template=home_insurance&autoload=true",
+      "url": "./index.html?template=home_insurance&autoload=true",
       "description": "Open with home insurance template"
     }
   ],
